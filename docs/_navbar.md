@@ -1,3 +1,3 @@
-- [replace-me](/)
+- [LibMan](/)
 - [Home](/)
-- [GitHub](replace-me)
+- [GitHub](https://github.com/gitjit/libman)
