@@ -179,8 +179,8 @@ db.createUser({
 Let us start by creating a src folder. Let us start with creating a .env to store the environment variables.
 
 ```sh
-MONGO_USERNAME=jith
-MONGO_PASSWORD=@jits
+MONGO_USERNAME=###
+MONGO_PASSWORD=###
 
 SERVER_PORT=8000
 ```

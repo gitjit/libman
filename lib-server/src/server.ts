@@ -3,6 +3,7 @@ import cors from 'cors';
 import { config } from './config';
 import { func } from 'joi';
 import mongoose from 'mongoose';
+import { registerRoutes } from './routes';
 
 const PORT = config.server.port;
 
@@ -16,9 +17,7 @@ app.use(cors());
 
         await mongoose.connect(config.mongo.url,{w:"majority", retryWrites:true,authMechanism:"DEFAULT"});
 
-        app.get("/health",(req:Request, res:Response) => {
-            res.status(200).json({message:"Server is running properly"});
-        })
+        registerRoutes(app);
     
         app.listen(PORT,()=>{
             console.log(`Server is listening on port ${PORT}`);
