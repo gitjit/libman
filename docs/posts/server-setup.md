@@ -125,13 +125,13 @@ Steps to Run MongoDB as a Docker Container on Windows 11
      ```
    - You should see the MongoDB container listed.
 
-5. **Connect to MongoDB**:
+5. **Connect to MongoDB shell in container**:
    - You can connect to MongoDB using a MongoDB client like MongoDB Compass or via the command line using `mongo` shell:
      ```sh
-     mongo --host localhost --port 27017
+     docker exec -it mongodb mongosh
      ```
 
-### Example Docker Commands
+### Docker Commands
 
 ```sh
 # Pull MongoDB image
@@ -144,10 +144,22 @@ docker run --name mongodb -d -p 27017:27017 mongo
 docker ps
 
 # Connect to MongoDB using mongo shell
-mongo --host localhost --port 27017
-```
+docker exec -it mongodb mongosh
 
-Add these steps to your `server-setup.md` file under the "Server Setup" section.
+# List all databases
+show dbs
+
+# Create a new database
+use Library
+
+# Create a new User admin to access the database
+db.createUser({
+  user: "libAdmin",
+  pwd: "securePassword123",
+  roles: [{ role: "dbOwner", db: "library" }]
+})
+
+```
 
 ### Using MongoDB Compass
 
@@ -159,69 +171,95 @@ Add these steps to your `server-setup.md` file under the "Server Setup" section.
 2. **Connect to MongoDB**:
 
    - Open MongoDB Compass.
-   - In the "New Connection" dialog, enter the connection string: `mongodb://localhost:27017`.
+   - In the "New Connection" dialog, enter the connection string: `mongodb://libAdmin:securePassword123@localhost:27017/library`.
    - Click "Connect".
 
-3. **View Databases and Collections**:
-   - Once connected, you will see a list of databases on the left sidebar.
-   - Click on a database to view its collections.
-   - Click on a collection to view its documents.
+## Setting up Express Server
 
-### Using MongoDB Shell (`mongo`)
-
-1. **Open a Terminal**:
-
-   - Open Command Prompt or PowerShell.
-
-2. **Connect to MongoDB**:
-
-   - Run the following command to connect to MongoDB (If and only if you have MongoDB shell installed):
-     ```sh
-     mongo --host localhost --port 27017
-     ```
-
-3. **View Databases**:
-
-   - In the MongoDB shell, run the following command to list all databases:
-     ```sh
-     show dbs
-     ```
-
-4. **Switch to a Database**:
-
-   - Run the following command to switch to a specific database:
-     ```sh
-     use <database_name>
-     ```
-
-5. **View Collections**:
-
-   - Run the following command to list all collections in the current database:
-     ```sh
-     show collections
-     ```
-
-6. **View Documents in a Collection**:
-   - Run the following command to view documents in a specific collection:
-     ```sh
-     db.<collection_name>.find().pretty()
-     ```
-
-### Example Commands
+Let us start by creating a src folder. Let us start with creating a .env to store the environment variables.
 
 ```sh
-# Connect to MongoDB
-mongo --host localhost --port 27017
+MONGO_USERNAME=jith
+MONGO_PASSWORD=@jits
 
-# List all databases
-show dbs
+SERVER_PORT=8000
+```
 
-# Switch to a specific database
-use mydatabase
+Now let us create a config.ts file in the src folder to load the environment variables.
 
-# List all collections in the current database
-show collections
+```ts
+import dotenv from "dotenv";
+import { url } from "inspector";
+import { mongo } from "mongoose";
 
-# View documents in a specific collection
-db.mycollection.find().pretty()
+dotenv.config();
+const MONGO_USERNAME: string = process.env.MONGO_USERNAME || "";
+const MONGO_PASSWORD: string = encodeURIComponent(
+  process.env.MONGO_PASSWORD || ""
+);
+
+const MONGO_URL: string = `mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@localhost:27017/library`;
+const PORT: number = process.env.SERVER_PORT
+  ? Number(process.env.SERVER_PORT)
+  : 8000;
+
+export const config = {
+  mongo: {
+    url: MONGO_URL,
+  },
+  server: {
+    port: PORT,
+  },
+};
+```
+
+Now let us create a server.ts file in the src folder and start the express server. We will also connect to the MongoDB database in a self-invoking async function.
+Ensure that the docker container is running before starting the server. You can start the server using the following command.
+
+```sh
+$ npm run dev
+```
+
+```ts
+import express, { Express, Request, Response } from "express";
+import cors from "cors";
+import { config } from "./config";
+import { func } from "joi";
+import mongoose from "mongoose";
+
+const PORT = config.server.port;
+
+const app: Express = express();
+app.use(express.json());
+app.use(cors());
+
+(async function startUp() {
+  try {
+    console.log(`starting server and connecting to : ${config.mongo.url}`);
+
+    await mongoose.connect(config.mongo.url, {
+      w: "majority",
+      retryWrites: true,
+      authMechanism: "DEFAULT",
+    });
+
+    app.get("/health", (req: Request, res: Response) => {
+      res.status(200).json({ message: "Server is running properly" });
+    });
+
+    app.listen(PORT, () => {
+      console.log(`Server is listening on port ${PORT}`);
+    });
+  } catch (error) {
+    console.log(`Could not make a connection to the database`, error);
+  }
+})();
+```
+
+### Testing the Server
+
+We can test server using Postman or curl. Let us test the health endpoint using curl.
+
+```sh
+$ curl http://localhost:8000/health
 ```
