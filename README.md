@@ -268,13 +268,25 @@ We can test server using Postman or curl. Let us test the health endpoint using 
 $ curl http://localhost:8000/health
 ```
 
-## Setting up Data Models, Data Access Objects, and Services
+## MVC Architecture
+
+We will be using **MVC (Model-View-Controller) architecture** or **MVC pattern** for REST API. In the context of a backend application, it is often extended to include **Services** and **DAOs (Data Access Objects)**, making it a more layered architecture. This pattern helps in organizing the codebase by separating concerns:
+
+- **Routes**: Define the endpoints and map them to controllers.
+- **Controllers**: Handle the incoming requests, process them, and return responses.
+- **Services**: Contain the business logic and interact with DAOs.
+- **DAOs**: Handle the direct interaction with the database.
+- **Models**: Represent the data structures.
+
+This layered approach enhances maintainability, scalability, and testability of the application.
+
+### Setting up Data Models, Data Access Objects, and Services
 
 Our first data model is the User model. This model will contain the user's information such as name, email, password, and role. We will use this model to store user data in the database.
 
 Let us analyze the requirement for the User model.
 
-## User Stories
+### User Stories
 
 There are different types of users in this project. They are:
 
@@ -284,7 +296,7 @@ There are different types of users in this project. They are:
 
 ![](_images/2024-07-26-21-17-34.png)
 
-## User Data Model
+### User Data Model
 
 Let us create our User Interface and User Schema.
 
@@ -373,7 +385,7 @@ newUser
 
 In this example, `newUser` is an instance of the [`User`] model, and calling `save()` will save the document to the `users` collection in the MongoDB database.
 
-## Data Layer Services
+### Data Layer Services
 
 Now with DataModel and Data Access Object (DAO) in place, let us create a service to interact with the User model. Let us create a UserService class that will contain methods to perform CRUD operations on the User model.
 
@@ -395,10 +407,258 @@ export async function register(user: IUser): Promise<IUserModel> {
 }
 ```
 
-## Controller Layer
+### Controller Layer
 
+//AuthController.ts
 Now let us create a AuthController to handle the user registration.
 
 ```typescript
+import { Request, Response } from "express";
+import { IUser } from "../models/User";
+import { register } from "../services/UserService";
+import { json } from "stream/consumers";
+
+async function handleRegister(req: Request, res: Response) {
+  const user: IUser = req.body;
+  try {
+    console.log(`A request to Register ${JSON.stringify(user)}`);
+    const registeredUser = await register(user);
+    res.status(201).json({
+      message: "User successfully created",
+      user: {
+        _id: registeredUser._id,
+        firstName: registeredUser.firstName,
+        lastName: registeredUser.lastName,
+        email: registeredUser.email,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      message: "Unable to register user at this time",
+      error: error.message,
+    });
+  }
+}
+
+export default { handleRegister };
+```
+
+### Routes
+
+//AuthRoutes.ts
+Now let us create a route to handle the user registration.
+
+```typescript
+import express from "express";
+import AuthController from "../controllers/AuthController";
+import validateUser from "../middlewares/validation";
+
+const router = express.Router();
+
+router.post("/register", validateUser, AuthController.handleRegister);
+
+export default router;
+```
+
+### Registering Routes
+
+Now let us register the routes in the server.ts file.
+
+```typescript
+import { Express, Request, Response } from "express";
+import authRoutes from "./AuthRoutes";
+
+export function registerRoutes(app: Express) {
+  app.get("/health", (req: Request, res: Response) => {
+    res.status(200).json({ message: "Server is running properly" });
+  });
+
+  app.use("/auth", authRoutes);
+}
+```
+
+Now let us import the registerRoutes function in the server.ts file and call it.
+
+```typescript
+import express, { Express, Request, Response } from "express";
+import cors from "cors";
+import { config } from "./config";
+import { func } from "joi";
+import mongoose from "mongoose";
+import { registerRoutes } from "./routes";
+
+const PORT = config.server.port;
+
+const app: Express = express();
+app.use(express.json());
+app.use(cors());
+
+(async function startUp() {
+  try {
+    console.log(`starting server and connecting to : ${config.mongo.url}`);
+
+    await mongoose.connect(config.mongo.url, {
+      w: "majority",
+      retryWrites: true,
+      authMechanism: "DEFAULT",
+    });
+
+    registerRoutes(app);
+
+    app.listen(PORT, () => {
+      console.log(`Server is listening on port ${PORT}`);
+    });
+  } catch (error) {
+    console.log(`Could not make a connection to the database`, error);
+  }
+})();
+```
+
+### Validation Middleware
+
+Now let us create a validation middleware to validate the user input using Joi.
+
+```typescript
+import Joi from "joi";
+import { Request, Response, NextFunction } from "express";
+
+const userValidationSchema = Joi.object({
+  userType: Joi.string().valid("ADMIN", "EMPLOYEE", "PATRON").required(),
+  firstName: Joi.string().min(2).required(),
+  lastName: Joi.string().min(2).required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(6).required(),
+});
+
+const validateUser = (req: Request, res: Response, next: NextFunction) => {
+  const { error } = userValidationSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: error.details[0].message });
+  }
+  next();
+};
+
+export default validateUser;
+```
+
+Now let us update the AuthRoutes.ts file to include the validation middleware.
+
+```typescript
+//AuthRoutes.ts
+import express from "express";
+import AuthController from "../controllers/AuthController";
+import validateUser from "../middlewares/validation";
+
+const router = express.Router();
+
+router.post("/register", validateUser, AuthController.handleRegister);
+
+export default router;
+```
+
+### Testing the User Registration
+
+Now let us test the user registration endpoint using curl.
+
+```sh
+$ curl -X POST http://localhost:8000/auth/register
+-H "Content-Type: application/json" -d  '{
+  "userType": "PATRON",
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "test@gmail.com",
+  "password": "securepassword"
+}'
+```
+
+make sur you are using gitbash and curl don't work in powershell as such.
+
+### Summary
+
+In this section, we have implemented the MVC architecture for the User registration feature. We have created the User model, User service, Auth controller, Auth routes, and validation middleware. We have also tested the user registration endpoint using curl. This architecture helps in organizing the codebase and separating concerns, making the application more maintainable and scalable.
+
+## Adding Login Route
+
+We can follow the same steps we did for Register route to create a login route. Let us create a LoginController to handle the user login.
+
+```typescript
+//AuthController.ts
+async function handleLogin(req: Request, res: Response) {
+  const { email, password } = req.body;
+  try {
+    const loggedInUser = await login(email, password);
+    if (!loggedInUser) {
+      return res.status(401).json("Invalid credentials");
+    }
+    return res.status(200).json({
+      _id: loggedInUser._id,
+      firstName: loggedInUser.firstName,
+      lastName: loggedInUser.lastName,
+      email: loggedInUser.email,
+    });
+  } catch (error: any) {
+    return res.status(500).json(error.message);
+  }
+}
+```
+
+Now let us create a validation middleware to validate the user login input using Joi.
+
+```typescript
+//validation.ts
+const userValidationSchema = {
+  create: Joi.object({
+    userType: Joi.string().valid("ADMIN", "EMPLOYEE", "PATRON").required(),
+    firstName: Joi.string().min(2).required(),
+    lastName: Joi.string().min(2).required(),
+    email: Joi.string().email().required(),
+    password: Joi.string().min(6).required(),
+  }),
+  login: Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().required(),
+  }),
+};
+
+const validateUser = (req: Request, res: Response, next: NextFunction) => {
+  const { error } = userValidationSchema.create.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: error.details[0].message });
+  }
+  next();
+};
+
+const validateLogin = (req: Request, res: Response, next: NextFunction) => {
+  const { error } = userValidationSchema.login.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: error.details[0].message });
+  }
+  next();
+};
+```
+
+Now let us update the AuthRoutes.ts file to include the validation middleware.
+
+```typescript
+import express from "express";
+import AuthController from "../controllers/AuthController";
+import { validateUser, validateLogin } from "../middlewares/validation";
+
+const router = express.Router();
+
+router.post("/register", validateUser, AuthController.handleRegister);
+router.post("/login", validateLogin, AuthController.handleLogin);
+
+export default router;
+```
+
+Now let us test the user login endpoint using curl.
+
+```sh
+$ curl -X POST http://localhost:8000/auth/login
+-H "Content-Type: application/json" -d  '{
+  "email": "bchan@gmail.com",
+  "password": "123"
+}'
 
 ```

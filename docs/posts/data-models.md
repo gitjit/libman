@@ -124,3 +124,11 @@ export async function register(user: IUser): Promise<IUserModel> {
   }
 }
 ```
+
+## Controller Layer
+
+Now let us create a AuthController to handle the user registration.
+
+```typescript
+
+```
