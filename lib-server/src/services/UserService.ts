@@ -3,9 +3,9 @@ import { config } from "../config";
 import { IUser } from "../models/User";
 import User, { IUserModel } from "../daos/UserDao";
 import {
-  InvalidCredentialsError,
   UserNotFoundError,
-} from "../errors/authErrors";
+  InvalidCredentialsError,
+} from "../errors/AuthErrors";
 
 export async function register(user: IUser): Promise<IUserModel> {
   const ROUNDS = config.server.rounds;
@@ -42,5 +42,24 @@ export async function login(
     }
     console.log(error);
     throw new Error("Unable to login");
+  }
+}
+
+export async function getUser(id: string): Promise<IUserModel> {
+  try {
+    const user = await User.findOne({ _id: id });
+    if (!user) {
+      throw new UserNotFoundError("User not found");
+    }
+    return user;
+  } catch (error) {
+    if (
+      error instanceof UserNotFoundError ||
+      error instanceof InvalidCredentialsError
+    ) {
+      throw error; // Rethrow custom errors
+    }
+    console.log(error);
+    throw new Error("Unable to find user");
   }
 }

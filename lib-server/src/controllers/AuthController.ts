@@ -1,11 +1,15 @@
 import { Request, Response } from "express";
 import { IUser } from "../models/User";
-import { register, login } from "../services/UserService";
+import { register, login, getUser } from "../services/UserService";
 import { json } from "stream/consumers";
+import { config } from "../config";
+import jwt from "jsonwebtoken";
+import { JWTPayload } from "../types";
+
 import {
   InvalidCredentialsError,
   UserNotFoundError,
-} from "../errors/authErrors";
+} from "../errors/AuthErrors";
 
 async function handleRegister(req: Request, res: Response) {
   const user: IUser = req.body;
@@ -36,11 +40,22 @@ async function handleLogin(req: Request, res: Response) {
     if (!loggedInUser) {
       return res.status(401).json("Invalid credentials");
     }
+
+    //generate jwt
+    const token = jwt.sign(
+      { _id: loggedInUser._id, email: loggedInUser.email } as JWTPayload,
+      config.server.jwt_secret,
+      { expiresIn: "1h" }
+    );
+
     return res.status(200).json({
-      _id: loggedInUser._id,
-      firstName: loggedInUser.firstName,
-      lastName: loggedInUser.lastName,
-      email: loggedInUser.email,
+      token,
+      user: {
+        _id: loggedInUser._id,
+        firstName: loggedInUser.firstName,
+        lastName: loggedInUser.lastName,
+        email: loggedInUser.email,
+      },
     });
   } catch (error: any) {
     if (
@@ -54,4 +69,30 @@ async function handleLogin(req: Request, res: Response) {
   }
 }
 
-export default { handleRegister, handleLogin };
+async function getAccountDetails(req: Request, res: Response) {
+  try {
+    const user = req.user; // jwt payload inserted by the middleware
+    console.log("GetAccountDetails", user);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const userInfo = await getUser(user._id);
+    return res.status(200).json({
+      _id: userInfo._id,
+      firstName: userInfo.firstName,
+      lastName: userInfo.lastName,
+      email: userInfo.email,
+    });
+  } catch (error) {
+    if (
+      error instanceof UserNotFoundError ||
+      error instanceof InvalidCredentialsError
+    ) {
+      return res.status(401).json({ message: error.message });
+    }
+    console.error("Login error:", error);
+    return res.status(500).json({ message: "Unable to login at this time" });
+  }
+}
+
+export default { handleRegister, handleLogin, getAccountDetails };
