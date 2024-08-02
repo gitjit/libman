@@ -9,6 +9,7 @@ export interface AuthSliceState {
   loading: boolean;
   error: boolean;
   registerSuccess: boolean;
+  userInfo: User | undefined;
 }
 
 // Initial state
@@ -18,6 +19,7 @@ const initialState: AuthSliceState = {
   loading: false,
   error: false,
   registerSuccess: false,
+  userInfo: undefined,
 };
 
 // loginUser
@@ -27,6 +29,25 @@ export const loginUser = createAsyncThunk(
     try {
       console.log("inside loginuser...");
       const resp = await axios.post("http://localhost:8000/auth/login", user);
+      return resp.data;
+    } catch (error) {
+      console.log(error);
+      return thunkAPI.rejectWithValue(error);
+    }
+  }
+);
+
+// account
+export const getAccountDetails = createAsyncThunk(
+  "auth/account",
+  async (token: string, thunkAPI) => {
+    try {
+      console.log("inside account details...");
+      const resp = await axios.get("http://localhost:8000/auth/account", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       return resp.data;
     } catch (error) {
       console.log(error);
@@ -62,6 +83,34 @@ export const AuthSlice = createSlice({
     });
 
     builder.addCase(loginUser.rejected, (state, action) => {
+      state = {
+        ...state,
+        error: true,
+      };
+      return state;
+    });
+    // account
+    builder.addCase(getAccountDetails.pending, (state, action) => {
+      state = {
+        ...state,
+        error: false,
+        loading: true,
+      };
+      return state;
+    });
+
+    builder.addCase(getAccountDetails.fulfilled, (state, action) => {
+      console.log("get-account-payload", action.payload);
+      state = {
+        ...state,
+        error: false,
+        loading: false,
+        userInfo: action.payload,
+      };
+      return state;
+    });
+
+    builder.addCase(getAccountDetails.rejected, (state, action) => {
       state = {
         ...state,
         error: true,
