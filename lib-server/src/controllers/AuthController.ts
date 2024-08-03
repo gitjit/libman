@@ -48,6 +48,23 @@ async function handleLogin(req: Request, res: Response) {
       { expiresIn: "1h" }
     );
 
+    // Set cookie with the token
+    res.cookie("authToken", token, {
+      httpOnly: true,
+      secure: config.server.node_env === "production", // Use secure cookies in production
+      maxAge: 3600000, // 1 hour
+      sameSite: config.server.node_env === "production" ? "none" : "lax", // Use SameSite=None in production for cross-site requests
+    });
+
+    // // Set cookie with the token (This response will automatically sets cookie)
+    // res.cookie("authToken", token, {
+    //   httpOnly: true,
+    //   secure: false,
+    //   // secure: process.env.NODE_ENV === "production",
+    //   maxAge: 3600000, // 1 hour
+    //   sameSite: "lax", // Allow cross-site requests
+    // });
+
     return res.status(200).json({
       token,
       user: {

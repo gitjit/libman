@@ -28,7 +28,9 @@ export const loginUser = createAsyncThunk(
   async (user: LoginUserPayload, thunkAPI) => {
     try {
       console.log("inside loginuser...");
-      const resp = await axios.post("http://localhost:8000/auth/login", user);
+      const resp = await axios.post("http://localhost:8000/auth/login", user, {
+        withCredentials: true,
+      });
       return resp.data;
     } catch (error) {
       console.log(error);
@@ -43,15 +45,26 @@ export const getAccountDetails = createAsyncThunk(
   async (token: string, thunkAPI) => {
     try {
       console.log("inside account details...");
-      const resp = await axios.get("http://localhost:8000/auth/account", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      // const resp = await axios.get("http://localhost:8000/auth/account", {
+      //   headers: {
+      //     Authorization: `Bearer ${token}`,
+      //   },
+      // });
+      // const resp = await axios.get("http://localhost:8000/auth/account", {
+      //   withCredentials: true, // Ensure cookies are sent with the request
+      // });
+      const resp = await fetch("http://localhost:8000/auth/account", {
+        method: "GET",
+        credentials: "include", // Ensure cookies are sent with the request
       });
-      return resp.data;
-    } catch (error) {
+      return await resp.json();
+    } catch (error: any) {
       console.log(error);
-      return thunkAPI.rejectWithValue(error);
+      return thunkAPI.rejectWithValue({
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      });
     }
   }
 );

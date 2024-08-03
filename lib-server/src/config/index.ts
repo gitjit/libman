@@ -7,6 +7,7 @@ const MONGO_USERNAME: string = process.env.MONGO_USERNAME || "";
 const MONGO_PASSWORD: string = encodeURIComponent(
   process.env.MONGO_PASSWORD || ""
 );
+const NODE_ENV = process.env.NODE_ENV;
 
 const MONGO_URL: string = `mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@localhost:27017/library`;
 const PORT: number = process.env.SERVER_PORT
@@ -25,5 +26,6 @@ export const config = {
     port: PORT,
     rounds: ROUNDS,
     jwt_secret: JWT_SECRET,
+    node_env: NODE_ENV,
   },
 };
